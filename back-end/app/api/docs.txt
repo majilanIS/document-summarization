@@ -1,0 +1,5 @@
+Your initial API can expose these endpoints:
+- POST /api/documents/upload — upload and extract document text.
+- POST /api/summaries/generate — generate a summary.
+- POST /api/feedback — save a rating or preference between two summaries.
+- GET /api/documents/{id} — retrieve a document's results.

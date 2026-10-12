@@ -1,0 +1,10 @@
+
+1. Option A — FLAN-T5
+Good starting point
+Model: google/flan-t5-base
+
+2. Option B — BART
+Model: facebook/bart-large-cnn
+
+3.Option C — Qwen
+Model family: Qwen Instruct
