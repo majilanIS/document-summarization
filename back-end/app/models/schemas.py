@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, model_validator
 
 SummaryLength = Literal["short", "medium", "detailed"]
 ModelKey = Literal["distilbart", "flan-t5"]
+Aspect = Literal["accuracy", "clarity", "coverage", "conciseness"]
 
 
 class SummaryOut(BaseModel):
@@ -22,7 +23,9 @@ class SummaryOut(BaseModel):
 class DocumentUploadOut(BaseModel):
     id: str
     filename: str
+    file_size: int
     word_count: int
+    char_count: int
     preview: str
     created_at: datetime
 
@@ -30,10 +33,23 @@ class DocumentUploadOut(BaseModel):
 class DocumentOut(BaseModel):
     id: str
     filename: str
+    file_size: int
     word_count: int
+    char_count: int
     text: str
     created_at: datetime
     summaries: list[SummaryOut]
+
+
+class DocumentListItem(BaseModel):
+    id: str
+    filename: str
+    file_size: int
+    word_count: int
+    char_count: int
+    created_at: datetime
+    summary_count: int
+    latest_summary_id: Optional[str]
 
 
 class SummaryRequest(BaseModel):
@@ -53,6 +69,8 @@ class FeedbackCreate(BaseModel):
     summary_b_id: Optional[str] = None
     preferred: Optional[Literal["a", "b", "tie"]] = None
 
+    # What the user liked about the summary.
+    aspects: list[Aspect] = Field(default_factory=list)
     comment: Optional[str] = Field(default=None, max_length=2000)
 
     @model_validator(mode="after")
@@ -92,8 +110,16 @@ class FeedbackOut(BaseModel):
     summary_a_id: Optional[str]
     summary_b_id: Optional[str]
     preferred: Optional[str]
+    aspects: list[str]
     comment: Optional[str]
     created_at: datetime
+
+
+class FeedbackListItem(FeedbackOut):
+    filename: str
+    # Model and length of the rated summary (rating feedback only).
+    model: Optional[str]
+    length: Optional[str]
 
 
 class ModelStats(BaseModel):
@@ -108,4 +134,6 @@ class ModelStats(BaseModel):
 
 class FeedbackStats(BaseModel):
     total_feedback: int
+    # How many times each aspect was ticked.
+    aspects: dict[str, int]
     models: list[ModelStats]

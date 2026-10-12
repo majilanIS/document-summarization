@@ -1,4 +1,5 @@
 
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -31,6 +32,8 @@ def save_feedback(data: FeedbackCreate) -> dict:
         "summary_a_id": data.summary_a_id,
         "summary_b_id": data.summary_b_id,
         "preferred": data.preferred,
+        # Deduplicated, in a stable order.
+        "aspects": sorted(set(data.aspects)),
         "comment": data.comment,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
@@ -40,14 +43,20 @@ def save_feedback(data: FeedbackCreate) -> dict:
             """
             INSERT INTO feedback
                 (id, document_id, summary_id, rating, summary_a_id,
-                 summary_b_id, preferred, comment, created_at)
+                 summary_b_id, preferred, aspects, comment, created_at)
             VALUES
                 (:id, :document_id, :summary_id, :rating, :summary_a_id,
-                 :summary_b_id, :preferred, :comment, :created_at)
+                 :summary_b_id, :preferred, :aspects, :comment, :created_at)
             """,
-            feedback,
+            {**feedback, "aspects": json.dumps(feedback["aspects"])},
         )
 
+    return feedback
+
+
+def _row_to_feedback(row) -> dict:
+    feedback = dict(row)
+    feedback["aspects"] = json.loads(feedback["aspects"] or "[]")
     return feedback
 
 
@@ -62,13 +71,35 @@ def list_feedback(document_id: str) -> list[dict]:
             (document_id,),
         ).fetchall()
 
-    return [dict(r) for r in rows]
+    return [_row_to_feedback(r) for r in rows]
+
+
+def list_recent_feedback(limit: int = 50) -> list[dict]:
+    """Newest first, with the document name and rated summary details."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT f.*, d.filename, s.model, s.length
+            FROM feedback f
+            JOIN documents d ON d.id = f.document_id
+            LEFT JOIN summaries s ON s.id = f.summary_id
+            ORDER BY f.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    return [_row_to_feedback(r) for r in rows]
 
 
 def feedback_stats() -> dict:
     """Average rating and head-to-head results per model."""
     with get_connection() as conn:
         total = conn.execute("SELECT COUNT(*) FROM feedback").fetchone()[0]
+
+        aspect_rows = conn.execute(
+            "SELECT aspects FROM feedback WHERE aspects != '[]'"
+        ).fetchall()
 
         ratings = conn.execute(
             """
@@ -128,7 +159,13 @@ def feedback_stats() -> dict:
             b["wins"] += 1
             a["losses"] += 1
 
+    aspects = {}
+    for row in aspect_rows:
+        for aspect in json.loads(row["aspects"]):
+            aspects[aspect] = aspects.get(aspect, 0) + 1
+
     return {
         "total_feedback": total,
+        "aspects": aspects,
         "models": sorted(stats.values(), key=lambda s: s["model"]),
     }

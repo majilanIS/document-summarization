@@ -16,6 +16,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS documents (
     id          TEXT PRIMARY KEY,
     filename    TEXT NOT NULL,
+    file_size   INTEGER NOT NULL DEFAULT 0,
     raw_text    TEXT NOT NULL,
     clean_text  TEXT NOT NULL,
     word_count  INTEGER NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     summary_a_id          TEXT REFERENCES summaries(id) ON DELETE CASCADE,
     summary_b_id          TEXT REFERENCES summaries(id) ON DELETE CASCADE,
     preferred             TEXT CHECK (preferred IN ('a', 'b', 'tie')),
+    aspects               TEXT NOT NULL DEFAULT '[]',
     comment               TEXT,
     created_at            TEXT NOT NULL
 );
@@ -49,10 +51,27 @@ CREATE INDEX IF NOT EXISTS idx_feedback_document ON feedback(document_id);
 """
 
 
+# Columns added after the first release, so existing databases get them too.
+MIGRATIONS = [
+    ("documents", "file_size", "INTEGER NOT NULL DEFAULT 0"),
+    ("feedback", "aspects", "TEXT NOT NULL DEFAULT '[]'"),
+]
+
+
 def init_db() -> None:
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
         conn.executescript(SCHEMA)
+
+        for table, column, definition in MIGRATIONS:
+            columns = {
+                row["name"]
+                for row in conn.execute(f"PRAGMA table_info({table})")
+            }
+            if column not in columns:
+                conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+                )
 
 
 @contextmanager

@@ -28,9 +28,21 @@ allowed_origins = os.getenv(
     "http://localhost:5173,http://localhost:3000",
 ).split(",")
 
+# Also allow the front-end when it is opened via 127.0.0.1 or the machine's
+# local network address (e.g. http://10.200.14.100:3000), on any port.
+LOCAL_ORIGIN_REGEX = (
+    r"https?://("
+    r"localhost|127\.0\.0\.1"
+    r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|192\.168\.\d{1,3}\.\d{1,3}"
+    r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r")(:\d+)?"
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in allowed_origins if o.strip()],
+    allow_origin_regex=os.getenv("ALLOWED_ORIGIN_REGEX", LOCAL_ORIGIN_REGEX),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

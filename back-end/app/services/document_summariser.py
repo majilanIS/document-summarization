@@ -1,4 +1,5 @@
 
+import re
 import threading
 from dataclasses import dataclass
 
@@ -29,11 +30,25 @@ MODELS = {
 
 DEFAULT_MODEL = "distilbart"
 
-LENGTH_SETTINGS = {
-    "short": 70,
-    "medium": 120,
-    "detailed": 180,
+# Summary size as a share of the document, so longer documents get
+# longer summaries. Keep in sync with LENGTHS in front-end/lib/format.js.
+LENGTH_RATIOS = {
+    "short": 0.10,
+    "medium": 0.20,
+    "detailed": 0.30,
 }
+
+# Whole-summary bounds in tokens (~0.75 words per token): at least a couple
+# of sentences, and at most ~1,100 words so generation time stays bearable.
+MIN_SUMMARY_TOKENS = 35
+MAX_SUMMARY_TOKENS = 1500
+
+# Bounds for a single model call (one chunk's summary).
+MIN_PIECE_TOKENS = 15
+MAX_PIECE_TOKENS = 300
+
+# Documents shorter than this are returned as they are.
+MIN_DOCUMENT_TOKENS = 60
 
 # CPU inference
 device = torch.device("cpu")
@@ -66,7 +81,8 @@ def is_loaded(model_key: str) -> bool:
     return model_key in _loaded
 
 
-def summarize_piece(model_key: str, text: str, max_length: int) -> str:
+def summarize_piece(model_key: str, text: str, target_tokens: int) -> str:
+    """Summarize one chunk to roughly target_tokens tokens."""
     config = MODELS[model_key]
     tokenizer, model = get_model(model_key)
 
@@ -77,24 +93,31 @@ def summarize_piece(model_key: str, text: str, max_length: int) -> str:
         max_length=config.max_input_tokens + 32,
     ).to(device)
 
-    # Very short inputs should not be forced into long outputs.
+    # Never ask for more than about half the input back.
     input_tokens = inputs["input_ids"].shape[1]
-    min_length = min(20, max(5, input_tokens // 4))
+    target = max(
+        MIN_PIECE_TOKENS,
+        min(target_tokens, MAX_PIECE_TOKENS, input_tokens // 2),
+    )
 
     with _generate_locks[model_key], torch.inference_mode():
         output = model.generate(
             **inputs,
-            max_new_tokens=max_length,
-            min_new_tokens=min_length,
+            # Allow some room either side of the target.
+            max_new_tokens=int(target * 1.25) + 5,
+            min_new_tokens=int(target * 0.75),
             num_beams=2,
             no_repeat_ngram_size=3,
             do_sample=False,
         )
 
-    return tokenizer.decode(
+    summary = tokenizer.decode(
         output[0],
         skip_special_tokens=True,
-    ).strip()
+    )
+
+    # CNN-trained models emit "word ." - drop the space before punctuation.
+    return re.sub(r"\s+([.,;:!?])", r"\1", summary).strip()
 
 
 def split_text(model_key: str, text: str) -> list[str]:
@@ -148,48 +171,37 @@ def summarize_document(
     length: str = "medium",
     model_key: str = DEFAULT_MODEL,
 ) -> str:
-    if length not in LENGTH_SETTINGS:
+    """Summarize to a length proportional to the document: each chunk is
+    summarized to its share of the target, and the chunk summaries become
+    the paragraphs of the result."""
+    if length not in LENGTH_RATIOS:
         raise ValueError("Invalid summary length")
 
-    target_length = LENGTH_SETTINGS[length]
-    config = MODELS[model_key]
     tokenizer, _ = get_model(model_key)
 
-    summaries = [
-        summarize_piece(model_key, chunk, target_length)
-        for chunk in split_text(model_key, text)
+    def count(s: str) -> int:
+        return len(tokenizer.encode(s, add_special_tokens=False))
+
+    total_tokens = count(text)
+
+    # Too short to be worth summarizing.
+    if total_tokens < MIN_DOCUMENT_TOKENS:
+        return text
+
+    target_tokens = round(total_tokens * LENGTH_RATIOS[length])
+    target_tokens = max(MIN_SUMMARY_TOKENS, min(target_tokens, MAX_SUMMARY_TOKENS))
+
+    chunks = split_text(model_key, text)
+    chunk_tokens = [count(chunk) for chunk in chunks]
+    chunked_total = sum(chunk_tokens) or 1
+
+    paragraphs = [
+        summarize_piece(
+            model_key,
+            chunk,
+            round(target_tokens * tokens / chunked_total),
+        )
+        for chunk, tokens in zip(chunks, chunk_tokens)
     ]
 
-    # Reduce: pack chunk summaries into groups that fit the model and
-    # summarize each group until a single summary remains.
-    while len(summaries) > 1:
-        groups = []
-        current = []
-        current_tokens = 0
-
-        for summary in summaries:
-            tokens = len(
-                tokenizer.encode(summary, add_special_tokens=False)
-            )
-            if current and current_tokens + tokens > config.max_input_tokens:
-                groups.append(current)
-                current, current_tokens = [], 0
-            current.append(summary)
-            current_tokens += tokens
-
-        if current:
-            groups.append(current)
-
-        # Guard against an infinite loop: force pairs if nothing merged.
-        if len(groups) >= len(summaries):
-            groups = [
-                summaries[i:i + 2]
-                for i in range(0, len(summaries), 2)
-            ]
-
-        summaries = [
-            summarize_piece(model_key, " ".join(group), target_length)
-            for group in groups
-        ]
-
-    return summaries[0] if summaries else ""
+    return "\n\n".join(p for p in paragraphs if p)

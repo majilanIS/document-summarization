@@ -1,7 +1,12 @@
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
-from app.models.schemas import FeedbackCreate, FeedbackOut, FeedbackStats
+from app.models.schemas import (
+    FeedbackCreate,
+    FeedbackListItem,
+    FeedbackOut,
+    FeedbackStats,
+)
 from app.services import documents, feedback
 
 
@@ -16,6 +21,11 @@ def create_feedback(data: FeedbackCreate):
         raise HTTPException(404, str(error))
     except ValueError as error:
         raise HTTPException(422, str(error))
+
+
+@router.get("", response_model=list[FeedbackListItem])
+def get_recent_feedback(limit: int = Query(50, ge=1, le=200)):
+    return feedback.list_recent_feedback(limit)
 
 
 @router.get("/stats", response_model=FeedbackStats)

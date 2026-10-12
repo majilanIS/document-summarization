@@ -24,6 +24,7 @@ def create_document(filename: str, content: bytes) -> dict:
     document = {
         "id": str(uuid.uuid4()),
         "filename": filename,
+        "file_size": len(content),
         "raw_text": raw_text,
         "clean_text": text,
         "word_count": word_count(text),
@@ -34,14 +35,16 @@ def create_document(filename: str, content: bytes) -> dict:
         conn.execute(
             """
             INSERT INTO documents
-                (id, filename, raw_text, clean_text, word_count, created_at)
+                (id, filename, file_size, raw_text, clean_text,
+                 word_count, created_at)
             VALUES
-                (:id, :filename, :raw_text, :clean_text, :word_count, :created_at)
+                (:id, :filename, :file_size, :raw_text, :clean_text,
+                 :word_count, :created_at)
             """,
             document,
         )
 
-    return document
+    return {**document, "char_count": len(text)}
 
 
 def get_document(document_id: str) -> Optional[dict]:
@@ -51,7 +54,46 @@ def get_document(document_id: str) -> Optional[dict]:
             (document_id,),
         ).fetchone()
 
-    return dict(row) if row else None
+    if row is None:
+        return None
+
+    document = dict(row)
+    document["char_count"] = len(document["clean_text"])
+    return document
+
+
+def list_documents(limit: int = 50) -> list[dict]:
+    """Newest first, without the full text."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                d.id, d.filename, d.file_size, d.word_count,
+                LENGTH(d.clean_text) AS char_count, d.created_at,
+                COUNT(s.id) AS summary_count,
+                (SELECT id FROM summaries
+                 WHERE document_id = d.id
+                 ORDER BY created_at DESC LIMIT 1) AS latest_summary_id
+            FROM documents d
+            LEFT JOIN summaries s ON s.document_id = d.id
+            GROUP BY d.id
+            ORDER BY d.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    return [dict(r) for r in rows]
+
+
+def delete_document(document_id: str) -> bool:
+    with get_connection() as conn:
+        cursor = conn.execute(
+            "DELETE FROM documents WHERE id = ?",
+            (document_id,),
+        )
+
+    return cursor.rowcount > 0
 
 
 def list_summaries(document_id: str) -> list[dict]:
