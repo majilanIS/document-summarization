@@ -1,0 +1,25 @@
+# docker compose up -d --build
+# API on http://localhost:8000, settings from .env (GEMINI_API_KEY, ...),
+# database kept in the docs-data volume across restarts and rebuilds.
+
+services:
+  api:
+    build:
+      context: .
+      args:
+        # true adds the offline models (much larger image).
+        WITH_LOCAL_MODELS: "false"
+    image: docs-summarizer-api
+    env_file: .env
+    environment:
+      # Front-end origins allowed to call the API directly (comma-separated).
+      # Not needed when requests go through the Next.js proxy.
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    volumes:
+      - docs-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  docs-data:

@@ -6,9 +6,15 @@
 // summarizing a long document on a CPU can take longer than that.
 
 import http from "node:http";
+import https from "node:https";
 import { Readable } from "node:stream";
 
 const BACKEND = new URL(process.env.BACKEND_URL ?? "http://127.0.0.1:8000");
+const client = BACKEND.protocol === "https:" ? https : http;
+
+// Seconds a request may take when deployed (Vercel): long documents can
+// take a while to summarize.
+export const maxDuration = 300;
 
 const HOP_BY_HOP = new Set([
   "connection",
@@ -29,10 +35,10 @@ function proxy(request) {
   }
 
   return new Promise((resolve) => {
-    const upstream = http.request(
+    const upstream = client.request(
       {
         hostname: BACKEND.hostname,
-        port: BACKEND.port || 80,
+        port: BACKEND.port || (BACKEND.protocol === "https:" ? 443 : 80),
         path: url.pathname + url.search,
         method: request.method,
         headers,
@@ -61,8 +67,8 @@ function proxy(request) {
         Response.json(
           {
             detail:
-              `The back-end is not running at ${BACKEND.origin}. ` +
-              "Start it with: uvicorn app.main:app --reload",
+              `Can't reach the back-end at ${BACKEND.origin}. ` +
+              "Check that it is running and that BACKEND_URL points to it.",
           },
           { status: 502 }
         )

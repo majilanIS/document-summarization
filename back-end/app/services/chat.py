@@ -28,7 +28,6 @@ import threading
 import uuid
 from datetime import datetime, timezone
 
-import torch
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import linear_kernel
 
@@ -249,7 +248,10 @@ def _ask_gemini(
 
 
 def _ask_local(question: str, passages: list[dict]) -> str:
-    tokenizer, model = summariser.get_model(LOCAL_MODEL)
+    try:
+        tokenizer, model = summariser.get_model(LOCAL_MODEL)
+    except ValueError as error:
+        raise ChatError(str(error))
     limit = summariser.MODELS[LOCAL_MODEL].max_input_tokens
 
     head = (
@@ -275,7 +277,7 @@ def _ask_local(question: str, passages: list[dict]) -> str:
         max_length=limit + 32,
     ).to(summariser.device)
 
-    with summariser.generate_lock(LOCAL_MODEL), torch.inference_mode():
+    with summariser.generate_lock(LOCAL_MODEL), summariser.torch.inference_mode():
         output = model.generate(
             **inputs,
             max_new_tokens=LOCAL_MAX_ANSWER_TOKENS,
@@ -361,8 +363,12 @@ def ask(document: dict, summary: str | None, question: str) -> tuple[dict, dict]
                 document, question, history, passages
             )
         except ChatError as error:
-            # Only fall back when the engine wasn't chosen explicitly.
-            if get_settings().chat_engine != "auto":
+            # Only fall back when the engine wasn't chosen explicitly and
+            # the local model is installed.
+            if (
+                get_settings().chat_engine != "auto"
+                or not summariser.LOCAL_MODELS_AVAILABLE
+            ):
                 raise
             log.warning("Gemini failed, answering locally: %s", error)
             engine = "local"

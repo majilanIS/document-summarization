@@ -9,7 +9,12 @@ from fastapi.responses import RedirectResponse
 from app.api import chat, documents, feedback, summaries
 from app.db import init_db
 from app.services import gemini
-from app.services.document_summariser import MODELS, default_model, is_loaded
+from app.services.document_summariser import (
+    LOCAL_MODELS_AVAILABLE,
+    MODELS,
+    default_model,
+    is_loaded,
+)
 from app.services.reward_model import reward_model
 
 
@@ -73,6 +78,7 @@ def list_models():
     models = [
         {"key": key, "name": config.name, "loaded": is_loaded(key)}
         for key, config in MODELS.items()
+        if LOCAL_MODELS_AVAILABLE
     ]
     if gemini.available():
         models.insert(0, {"key": "gemini", "name": gemini.model_name(), "loaded": True})

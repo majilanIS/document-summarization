@@ -1,0 +1,22 @@
+# What the API needs to run with Gemini. The Docker image installs only
+# this; requirements.txt adds the local models and test tools.
+
+fastapi
+uvicorn[standard]
+python-multipart
+
+# LLM integration
+google-genai
+
+# Document extraction
+pymupdf
+python-docx
+
+# Configuration and reliability
+python-dotenv
+pydantic-settings
+tenacity
+
+# Text processing
+numpy
+scikit-learn

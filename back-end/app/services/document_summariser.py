@@ -4,15 +4,23 @@ import re
 import threading
 from dataclasses import dataclass
 
-import torch
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
 from app.config import get_settings
 from app.services import gemini, prompt
 from app.services.reward_model import reward_model
 
 
 log = logging.getLogger(__name__)
+
+# The local models need torch and transformers (requirements.txt). The
+# Gemini-only server install (requirements-server.txt, the Docker image)
+# leaves them out.
+try:
+    import torch
+    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+except ImportError:
+    torch = None
+
+LOCAL_MODELS_AVAILABLE = torch is not None
 
 
 @dataclass(frozen=True)
@@ -100,7 +108,11 @@ BATCH_SIZE = 4
 NUM_CANDIDATES = get_settings().rlhf_candidates
 
 # Use an NVIDIA GPU when there is one (much faster), otherwise the CPU.
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = (
+    torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if LOCAL_MODELS_AVAILABLE
+    else None
+)
 
 _loaded = {}
 _load_lock = threading.Lock()
@@ -112,6 +124,11 @@ def get_model(model_key: str):
     if model_key not in MODELS:
         raise ValueError(
             f"Unknown model. Available: {', '.join(MODELS)}"
+        )
+    if not LOCAL_MODELS_AVAILABLE:
+        raise ValueError(
+            "Local models aren't installed on this server. Set "
+            "GEMINI_API_KEY, or install requirements.txt."
         )
 
     with _load_lock:
@@ -300,10 +317,11 @@ def summarize_document(
             try:
                 return _summarize_gemini(text, length, filename)
             except gemini.GeminiError as error:
-                if explicit:
+                # Nothing to fall back to on a Gemini-only server.
+                if explicit or not LOCAL_MODELS_AVAILABLE:
                     raise
                 log.warning("Gemini failed, summarizing locally: %s", error)
-        elif explicit:
+        elif explicit or not LOCAL_MODELS_AVAILABLE:
             raise ValueError("Document is too long for Gemini")
         model_key = LOCAL_DEFAULT_MODEL
 
