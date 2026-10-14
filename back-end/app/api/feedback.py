@@ -6,8 +6,11 @@ from app.models.schemas import (
     FeedbackListItem,
     FeedbackOut,
     FeedbackStats,
+    RewardModelStatus,
 )
 from app.services import documents, feedback
+from app.services.document_summariser import NUM_CANDIDATES
+from app.services.reward_model import reward_model
 
 
 router = APIRouter(prefix="/api/feedback", tags=["feedback"])
@@ -31,6 +34,12 @@ def get_recent_feedback(limit: int = Query(50, ge=1, le=200)):
 @router.get("/stats", response_model=FeedbackStats)
 def get_stats():
     return feedback.feedback_stats()
+
+
+@router.get("/reward-model", response_model=RewardModelStatus)
+def get_reward_model():
+    """What the reward model has learned from feedback so far (RLHF)."""
+    return {**reward_model.status(), "candidates": NUM_CANDIDATES}
 
 
 @router.get("/document/{document_id}", response_model=list[FeedbackOut])

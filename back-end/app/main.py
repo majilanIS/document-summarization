@@ -6,14 +6,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
-from app.api import documents, feedback, summaries
+from app.api import chat, documents, feedback, summaries
 from app.db import init_db
-from app.services.document_summariser import MODELS, is_loaded
+from app.services import gemini
+from app.services.document_summariser import MODELS, default_model, is_loaded
+from app.services.reward_model import reward_model
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Fit the reward model to the feedback collected so far.
+    reward_model.train()
     yield
 
 
@@ -51,6 +55,7 @@ app.add_middleware(
 app.include_router(documents.router)
 app.include_router(summaries.router)
 app.include_router(feedback.router)
+app.include_router(chat.router)
 
 
 @app.get("/", include_in_schema=False)
@@ -65,7 +70,13 @@ def health():
 
 @app.get("/api/models", tags=["system"])
 def list_models():
-    return [
+    models = [
         {"key": key, "name": config.name, "loaded": is_loaded(key)}
         for key, config in MODELS.items()
     ]
+    if gemini.available():
+        models.insert(0, {"key": "gemini", "name": gemini.model_name(), "loaded": True})
+
+    for model in models:
+        model["default"] = model["key"] == default_model()
+    return models

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getFeedbackStats, listFeedback } from "@/lib/api";
+import { getFeedbackStats, getRewardModel, listFeedback } from "@/lib/api";
 import { ASPECTS, aspectLabel, formatDate, lengthInfo } from "@/lib/format";
-import { ChatHeartIcon, StarIcon } from "@/components/icons";
+import { ChatHeartIcon, SparklesIcon, StarIcon } from "@/components/icons";
 import {
   Card,
   ErrorBanner,
@@ -20,10 +20,10 @@ export default function FeedbackOverview() {
   useEffect(() => {
     let ignore = false;
 
-    Promise.all([getFeedbackStats(), listFeedback()])
-      .then(([stats, recent]) => {
+    Promise.all([getFeedbackStats(), listFeedback(), getRewardModel()])
+      .then(([stats, recent, rewardModel]) => {
         if (!ignore) {
-          setData({ stats, recent });
+          setData({ stats, recent, rewardModel });
           setError("");
         }
       })
@@ -47,6 +47,7 @@ export default function FeedbackOverview() {
         <ErrorBanner message={error} />
         {!data && !error && <LoadingBlock />}
         {data && <Overview stats={data.stats} recent={data.recent} />}
+        {data && <RewardModelCard model={data.rewardModel} />}
       </div>
     </div>
   );
@@ -81,9 +82,11 @@ function Overview({ stats, recent }) {
   }));
   const topAspect = [...aspectCounts].sort((a, b) => b.count - a.count)[0];
 
+  const chatRated = stats.chat_helpful + stats.chat_unhelpful;
+
   return (
     <>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Total feedback" value={stats.total_feedback.toLocaleString("en-US")} />
         <StatTile
           label="Average rating"
@@ -92,6 +95,14 @@ function Overview({ stats, recent }) {
         <StatTile
           label="Most liked"
           value={topAspect.count ? topAspect.label : "–"}
+        />
+        <StatTile
+          label="Helpful chat answers"
+          value={
+            chatRated
+              ? `${Math.round((stats.chat_helpful / chatRated) * 100)}%`
+              : "–"
+          }
         />
       </div>
 
@@ -131,6 +142,88 @@ function Overview({ stats, recent }) {
         </ul>
       </Card>
     </>
+  );
+}
+
+// Keep in sync with FEATURES in back-end/app/services/reward_model.py.
+const REWARD_FEATURES = {
+  coverage: "Covers the main terms",
+  support: "Sticks to the document's words",
+  novelty: "Rephrases in new words",
+  redundancy: "Repeats itself",
+  compression: "Longer summary",
+  sentence_length: "Longer sentences",
+  complete: "Ends on a full sentence",
+  numbers_supported: "Figures found in the document",
+};
+
+function RewardModelCard({ model }) {
+  const learned = model.mode === "learned";
+  const max = Math.max(0.01, ...model.weights.map((w) => Math.abs(w.weight)));
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-ink">
+            <SparklesIcon className="size-4 text-primary" />
+            Reward model (RLHF)
+          </h2>
+          <p className="mt-1 max-w-xl text-xs text-muted">
+            Learned from your ratings. When several candidate summaries are
+            generated (up to {model.candidates}), this model keeps the one it
+            expects you to like best, after hallucination checks.
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+            learned ? "bg-success-soft text-success" : "bg-canvas text-ink-soft"
+          }`}
+        >
+          {learned ? "Learning from feedback" : "Using defaults"}
+        </span>
+      </div>
+
+      <p className="mt-3 text-xs text-ink-soft">
+        Trained on {model.ratings} {model.ratings === 1 ? "rating" : "ratings"}{" "}
+        and {model.pairs} preference {model.pairs === 1 ? "pair" : "pairs"}
+        {!learned &&
+          `. Needs ${model.min_feedback} feedback items before it adapts`}
+        .
+      </p>
+
+      <h3 className="mt-5 text-xs font-semibold text-ink">
+        What it rewards (right) and penalizes (left)
+      </h3>
+      <dl className="mt-3 flex flex-col gap-2.5">
+        {model.weights.map((w) => {
+          const width = `${(Math.abs(w.weight) / max) * 50}%`;
+          const positive = w.weight >= 0;
+          return (
+            <div
+              key={w.feature}
+              className="grid grid-cols-[minmax(0,11rem)_1fr_3rem] items-center gap-3"
+              title={`Weight ${w.weight} (default ${w.prior})`}
+            >
+              <dt className="truncate text-sm text-ink-soft">
+                {REWARD_FEATURES[w.feature] ?? w.feature}
+              </dt>
+              <dd className="relative h-2.5 rounded bg-canvas">
+                <span aria-hidden="true" className="absolute inset-y-0 left-1/2 w-px bg-line" />
+                <span
+                  className={`absolute inset-y-0 rounded ${positive ? "left-1/2 bg-primary" : "right-1/2 bg-danger"}`}
+                  style={{ width }}
+                />
+              </dd>
+              <dd className="text-right text-sm tabular-nums text-ink">
+                {w.weight > 0 ? "+" : ""}
+                {w.weight.toFixed(2)}
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+    </Card>
   );
 }
 

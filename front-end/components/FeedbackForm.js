@@ -48,7 +48,8 @@ export default function FeedbackForm({ summaryId }) {
         <div>
           <p className="text-sm font-semibold text-ink">Thanks for your feedback!</p>
           <p className="text-xs text-muted">
-            It helps us improve the quality of future summaries.
+            It&apos;s now part of the reward model&apos;s training data for
+            future summaries.
           </p>
         </div>
       </Card>
@@ -71,7 +72,8 @@ export default function FeedbackForm({ summaryId }) {
             Was this summary helpful?
           </h2>
           <p className="mt-1 text-xs text-muted sm:pl-11">
-            Your feedback helps us improve the quality of future summaries.
+            Your rating trains the reward model that picks the best candidate
+            for future summaries.
           </p>
 
           <div

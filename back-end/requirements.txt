@@ -2,7 +2,25 @@
 fastapi
 uvicorn[standard]
 python-multipart
+
+# LLM integration
+google-genai
 transformers>=4.45,<5.0
 torch
+
+# Document extraction
 pymupdf
 python-docx
+
+# Configuration and reliability
+python-dotenv
+pydantic-settings
+tenacity
+
+# Text processing
+numpy
+scikit-learn
+
+# Testing
+pytest
+httpx

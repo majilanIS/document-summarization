@@ -30,6 +30,11 @@ CREATE TABLE IF NOT EXISTS summaries (
     length       TEXT NOT NULL,
     text         TEXT NOT NULL,
     duration_ms  INTEGER NOT NULL,
+    -- Reward model score and how many candidates it chose from (RLHF).
+    reward       REAL,
+    candidates   INTEGER NOT NULL DEFAULT 1,
+    -- Share of hallucination checks passed (Gemini summaries only).
+    grounding    REAL,
     created_at   TEXT NOT NULL
 );
 
@@ -46,8 +51,24 @@ CREATE TABLE IF NOT EXISTS feedback (
     created_at            TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id           TEXT PRIMARY KEY,
+    document_id  TEXT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+    role         TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content      TEXT NOT NULL,
+    -- Passages of the document the answer was based on (JSON list).
+    sources      TEXT NOT NULL DEFAULT '[]',
+    -- Structured answer: direct answer, cited points, gaps (JSON).
+    details      TEXT,
+    engine       TEXT,
+    -- Thumbs up (1) or down (-1) on an answer.
+    rating       INTEGER CHECK (rating IN (-1, 1)),
+    created_at   TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_summaries_document ON summaries(document_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_document ON feedback(document_id);
+CREATE INDEX IF NOT EXISTS idx_chat_document ON chat_messages(document_id);
 """
 
 
@@ -55,6 +76,10 @@ CREATE INDEX IF NOT EXISTS idx_feedback_document ON feedback(document_id);
 MIGRATIONS = [
     ("documents", "file_size", "INTEGER NOT NULL DEFAULT 0"),
     ("feedback", "aspects", "TEXT NOT NULL DEFAULT '[]'"),
+    ("summaries", "reward", "REAL"),
+    ("summaries", "candidates", "INTEGER NOT NULL DEFAULT 1"),
+    ("summaries", "grounding", "REAL"),
+    ("chat_messages", "details", "TEXT"),
 ]
 
 

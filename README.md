@@ -27,11 +27,23 @@ Browser (Next.js)                        FastAPI back-end
    summary, and a 5,000-word paper gives about 1,000 words.
 2. **Processing**: shows progress through extracting text, generating the
    summary and finalizing.
-3. **Result**: shows the summary with Download (.txt) and Copy, buttons to try
-   another length, and a feedback form (1–5 stars and what you liked: accuracy,
-   clarity, coverage, conciseness).
-4. **History**: every uploaded document; open one again or delete it.
-5. **Feedback**: total feedback, average rating, most-liked aspects, and recent
+3. **Result**: shows the summary organized as **Key points**, one numbered part per
+   section of the document with its sentences as bullets, or as **Paragraphs**.
+   It also shows word counts, the percentage of the original and reading time,
+   plus Download (.txt) and Copy in the same layout, buttons to try another
+   length, and a feedback form (1–5 stars and what you liked: accuracy, clarity,
+   coverage, conciseness). Ratings train a reward model (RLHF) that picks the
+   best candidate for future summaries.
+4. **Chat**: below the summary, ask questions about the document. Answers come
+   from the document, with the verified passages they're based on, and can be
+   rated 👍/👎.
+
+With a `GEMINI_API_KEY` in `back-end/.env`, Gemini reads the whole document at
+once and every summary and answer is checked against it for hallucinations
+(see [`back-end/readme.md`](back-end/readme.md)). Without a key, local models
+are used.
+5. **History**: every uploaded document; open one again or delete it.
+6. **Feedback**: total feedback, average rating, most-liked aspects, the reward model's learned weights, and recent
    ratings.
 
 ## Running it

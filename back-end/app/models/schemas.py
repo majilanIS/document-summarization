@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 SummaryLength = Literal["short", "medium", "detailed"]
-ModelKey = Literal["distilbart", "flan-t5"]
+ModelKey = Literal["gemini", "distilbart", "flan-t5"]
 Aspect = Literal["accuracy", "clarity", "coverage", "conciseness"]
 
 
@@ -17,6 +17,11 @@ class SummaryOut(BaseModel):
     length: str
     text: str
     duration_ms: int
+    # Reward model score, and how many candidates it was chosen from.
+    reward: Optional[float] = None
+    candidates: int = 1
+    # Share of hallucination checks passed, 0..1 (Gemini summaries only).
+    grounding: Optional[float] = None
     created_at: datetime
 
 
@@ -55,7 +60,8 @@ class DocumentListItem(BaseModel):
 class SummaryRequest(BaseModel):
     document_id: str
     length: SummaryLength = "medium"
-    model: ModelKey = "distilbart"
+    # None: Gemini when GEMINI_API_KEY is set, otherwise distilbart.
+    model: Optional[ModelKey] = None
 
 
 class FeedbackCreate(BaseModel):
@@ -137,3 +143,74 @@ class FeedbackStats(BaseModel):
     # How many times each aspect was ticked.
     aspects: dict[str, int]
     models: list[ModelStats]
+    # Thumbs up / down on chat answers.
+    chat_helpful: int
+    chat_unhelpful: int
+
+
+class RewardWeight(BaseModel):
+    feature: str
+    weight: float
+    prior: float
+
+
+class RewardModelStatus(BaseModel):
+    # "prior" until there is enough feedback, then "learned".
+    mode: Literal["prior", "learned"]
+    ratings: int
+    pairs: int
+    min_feedback: int
+    candidates: int
+    trained_at: Optional[datetime]
+    weights: list[RewardWeight]
+
+
+class ChatSource(BaseModel):
+    # quote: verified verbatim quote the answer's points cite by number;
+    # document / summary: retrieved passage the answer may be based on.
+    kind: Literal["quote", "document", "summary"]
+    text: str
+
+
+class ChatPoint(BaseModel):
+    # May start with a **bold** key term.
+    text: str
+    # 1-based number of the source that supports it.
+    source: Optional[int]
+
+
+class ChatDetails(BaseModel):
+    """Structured form of a Gemini answer."""
+
+    direct_answer: str
+    points: list[ChatPoint]
+    not_covered: Optional[str]
+    # Figures in the answer could not be found in the document.
+    unverified: bool
+
+
+class ChatMessageOut(BaseModel):
+    id: str
+    document_id: str
+    role: Literal["user", "assistant"]
+    # Plain-text answer (always set; the only form for local answers).
+    content: str
+    sources: list[ChatSource]
+    details: Optional[ChatDetails] = None
+    engine: Optional[str]
+    rating: Optional[int]
+    created_at: datetime
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class ChatReply(BaseModel):
+    question: ChatMessageOut
+    answer: ChatMessageOut
+
+
+class ChatRating(BaseModel):
+    # 1 = helpful, -1 = not helpful, null = remove the rating.
+    rating: Optional[Literal[-1, 1]]

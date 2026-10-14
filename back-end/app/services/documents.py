@@ -8,6 +8,7 @@ from app.db import get_connection
 from app.services.document_parser import extract_text
 from app.services.document_summariser import summarize_document
 from app.services.preprocessing import clean_text, word_count
+from app.services.reward_model import reward_model
 
 
 def _now() -> str:
@@ -120,22 +121,31 @@ def get_summary(summary_id: str) -> Optional[dict]:
     return dict(row) if row else None
 
 
-def create_summary(document: dict, length: str, model_key: str) -> dict:
+def create_summary(
+    document: dict,
+    length: str,
+    model_key: Optional[str] = None,
+) -> dict:
+    """model_key None picks the default model (see summarize_document)."""
     started = time.perf_counter()
-    text = summarize_document(
+    result = summarize_document(
         document["clean_text"],
         length=length,
         model_key=model_key,
+        filename=document["filename"],
     )
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     summary = {
         "id": str(uuid.uuid4()),
         "document_id": document["id"],
-        "model": model_key,
+        "model": result.model,
         "length": length,
-        "text": text,
+        "text": result.text,
         "duration_ms": duration_ms,
+        "reward": round(reward_model.score(document["clean_text"], result.text), 4),
+        "candidates": result.candidates,
+        "grounding": result.grounding,
         "created_at": _now(),
     }
 
@@ -143,9 +153,11 @@ def create_summary(document: dict, length: str, model_key: str) -> dict:
         conn.execute(
             """
             INSERT INTO summaries
-                (id, document_id, model, length, text, duration_ms, created_at)
+                (id, document_id, model, length, text, duration_ms,
+                 reward, candidates, grounding, created_at)
             VALUES
-                (:id, :document_id, :model, :length, :text, :duration_ms, :created_at)
+                (:id, :document_id, :model, :length, :text, :duration_ms,
+                 :reward, :candidates, :grounding, :created_at)
             """,
             summary,
         )

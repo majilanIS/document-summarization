@@ -89,3 +89,31 @@ export function listFeedback() {
 export function getFeedbackStats() {
   return request("/api/feedback/stats");
 }
+
+export function getRewardModel() {
+  return request("/api/feedback/reward-model");
+}
+
+export function getChat(documentId) {
+  return request(`/api/chat/${encodeURIComponent(documentId)}`);
+}
+
+/** Resolves to { question, answer }, both saved messages. */
+export function sendChatMessage(documentId, message) {
+  return postJson(`/api/chat/${encodeURIComponent(documentId)}`, { message });
+}
+
+export function clearChat(documentId) {
+  return request(`/api/chat/${encodeURIComponent(documentId)}`, {
+    method: "DELETE",
+  });
+}
+
+/** rating: 1 (helpful), -1 (not helpful) or null to remove it. */
+export function rateChatMessage(messageId, rating) {
+  return request(`/api/chat/messages/${encodeURIComponent(messageId)}/rating`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating }),
+  });
+}

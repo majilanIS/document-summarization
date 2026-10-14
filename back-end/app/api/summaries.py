@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.models.schemas import SummaryOut, SummaryRequest
 from app.services import documents
+from app.services.gemini import GeminiError
 
 
 router = APIRouter(prefix="/api/summaries", tags=["summaries"])
@@ -25,6 +26,8 @@ def generate_summary(request: SummaryRequest):
         )
     except ValueError as error:
         raise HTTPException(422, str(error))
+    except GeminiError as error:
+        raise HTTPException(502, str(error))
 
 
 @router.get("/{summary_id}", response_model=SummaryOut)

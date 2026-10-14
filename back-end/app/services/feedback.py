@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from app.db import get_connection
 from app.models.schemas import FeedbackCreate
 from app.services.documents import get_summary
+from app.services.reward_model import reward_model
 
 
 def save_feedback(data: FeedbackCreate) -> dict:
@@ -50,6 +51,9 @@ def save_feedback(data: FeedbackCreate) -> dict:
             """,
             {**feedback, "aspects": json.dumps(feedback["aspects"])},
         )
+
+    # Learn from it right away, so the next summary already reflects it.
+    reward_model.train()
 
     return feedback
 
@@ -121,6 +125,15 @@ def feedback_stats() -> dict:
             """
         ).fetchall()
 
+        chat = conn.execute(
+            """
+            SELECT
+                COALESCE(SUM(rating = 1), 0) AS helpful,
+                COALESCE(SUM(rating = -1), 0) AS unhelpful
+            FROM chat_messages
+            """
+        ).fetchone()
+
     stats = {}
 
     def entry(model: str) -> dict:
@@ -168,4 +181,6 @@ def feedback_stats() -> dict:
         "total_feedback": total,
         "aspects": aspects,
         "models": sorted(stats.values(), key=lambda s: s["model"]),
+        "chat_helpful": chat["helpful"],
+        "chat_unhelpful": chat["unhelpful"],
     }
