@@ -81,6 +81,8 @@ def test_falls_back_to_local_model_when_gemini_fails(calls, monkeypatch):
         raise gemini.GeminiError("quota")
 
     monkeypatch.setattr(gemini, "generate_json", fail)
+    # CI installs only requirements-server.txt, so torch is absent there.
+    monkeypatch.setattr(summariser, "LOCAL_MODELS_AVAILABLE", True)
     monkeypatch.setattr(
         summariser,
         "_summarize_local",
