@@ -279,6 +279,3 @@ The backend uses a persistent Docker volume for stored data. The default Docker 
 - Gemini usage depends on API availability, quotas, and model access.
 - Grounding and reward-model scoring improve quality but do not guarantee factual correctness.
 
-## License
-
-Add your chosen license and its corresponding `LICENSE` file before distributing the project.

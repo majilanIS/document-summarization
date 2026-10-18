@@ -50,17 +50,17 @@ def create_document(filename: str, content: bytes) -> dict:
 
 def get_document(document_id: str) -> Optional[dict]:
     with get_connection() as conn:
+        # raw_text is kept for reference only; skip it on every lookup.
         row = conn.execute(
-            "SELECT * FROM documents WHERE id = ?",
+            """
+            SELECT id, filename, file_size, clean_text, word_count,
+                   LENGTH(clean_text) AS char_count, created_at
+            FROM documents WHERE id = ?
+            """,
             (document_id,),
         ).fetchone()
 
-    if row is None:
-        return None
-
-    document = dict(row)
-    document["char_count"] = len(document["clean_text"])
-    return document
+    return dict(row) if row else None
 
 
 def list_documents(limit: int = 50) -> list[dict]:

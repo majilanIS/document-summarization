@@ -273,20 +273,32 @@ def _load_training_data():
             s["id"]: s
             for s in conn.execute(
                 f"""
-                SELECT s.id, s.text, d.clean_text
-                FROM summaries s JOIN documents d ON d.id = s.document_id
-                WHERE s.id IN ({",".join("?" * len(summary_ids))})
+                SELECT id, text, document_id FROM summaries
+                WHERE id IN ({",".join("?" * len(summary_ids))})
                 """,
                 list(summary_ids),
             )
         } if summary_ids else {}
+
+        # Each document's text once, however many of its summaries were rated.
+        document_ids = {s["document_id"] for s in summaries.values()}
+        sources = {
+            d["id"]: d["clean_text"]
+            for d in conn.execute(
+                f"""
+                SELECT id, clean_text FROM documents
+                WHERE id IN ({",".join("?" * len(document_ids))})
+                """,
+                list(document_ids),
+            )
+        } if document_ids else {}
 
     cache = {}
 
     def feats(summary_id):
         if summary_id not in cache:
             s = summaries[summary_id]
-            cache[summary_id] = features(s["clean_text"], s["text"])
+            cache[summary_id] = features(sources[s["document_id"]], s["text"])
         return cache[summary_id]
 
     rated = []

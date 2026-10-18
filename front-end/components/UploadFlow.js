@@ -151,7 +151,7 @@ export default function UploadFlow() {
           <span className="mt-5 text-xs text-muted">
             Supported formats: PDF, DOCX, TXT
             <span className="mx-2 text-line">|</span>
-            Max size: 100 MB
+            Max size: 10 MB
           </span>
         </label>
 

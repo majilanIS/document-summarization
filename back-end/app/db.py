@@ -66,9 +66,15 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at   TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_summaries_document ON summaries(document_id);
+-- (document_id, created_at) also serves the ordered and "latest" lookups.
+DROP INDEX IF EXISTS idx_summaries_document;
+DROP INDEX IF EXISTS idx_chat_document;
+CREATE INDEX IF NOT EXISTS idx_summaries_document_created
+    ON summaries(document_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_feedback_document ON feedback(document_id);
-CREATE INDEX IF NOT EXISTS idx_chat_document ON chat_messages(document_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+CREATE INDEX IF NOT EXISTS idx_chat_document_created
+    ON chat_messages(document_id, created_at);
 """
 
 
@@ -86,6 +92,9 @@ MIGRATIONS = [
 def init_db() -> None:
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
+        # Readers don't block the writer (and vice versa). Stored in the
+        # database file, so setting it once is enough.
+        conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(SCHEMA)
 
         for table, column, definition in MIGRATIONS:
@@ -101,9 +110,12 @@ def init_db() -> None:
 
 @contextmanager
 def get_connection():
-    conn = sqlite3.connect(DATABASE_PATH)
+    # Wait for a concurrent writer instead of failing with "database is locked".
+    conn = sqlite3.connect(DATABASE_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Safe with WAL and much faster than the default FULL.
+    conn.execute("PRAGMA synchronous = NORMAL")
     try:
         yield conn
         conn.commit()

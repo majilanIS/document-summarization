@@ -128,14 +128,17 @@ _index_cache = {}
 _index_lock = threading.Lock()
 
 
-def _index(document: dict) -> PassageIndex:
-    # Documents never change after upload, so the index can be kept.
+def _indexes(document: dict) -> tuple[PassageIndex, prompt.DocumentIndex]:
+    """(retrieval index, quote verification index) for the document.
+    Documents never change after upload, so both can be kept."""
     with _index_lock:
         if document["id"] not in _index_cache:
             if len(_index_cache) >= 16:
                 _index_cache.pop(next(iter(_index_cache)))
-            _index_cache[document["id"]] = PassageIndex(
-                split_passages(document["clean_text"])
+            text = document["clean_text"]
+            _index_cache[document["id"]] = (
+                PassageIndex(split_passages(text)),
+                prompt.DocumentIndex(text),
             )
         return _index_cache[document["id"]]
 
@@ -144,7 +147,7 @@ def retrieve(document: dict, summary: str | None, query: str, k: int) -> list[di
     """Best passages for the query: from the document, falling back to the
     summary for broad questions ("what is this about?") that match no
     passage in particular."""
-    index = _index(document)
+    index, _ = _indexes(document)
     hits = [
         {"kind": "document", "text": index.passages[i]}
         for _, i in index.search(query, k)
@@ -209,7 +212,7 @@ def _ask_gemini(
     if not reply.found_in_document:
         reply.points = []
 
-    index = prompt.DocumentIndex(document["clean_text"])
+    _, index = _indexes(document)
 
     # Keep the verified quotes, numbered 1.. in their original order, and
     # point each point at its quote's new number (or at none).
