@@ -10,8 +10,8 @@ services:
       args:
         # true adds the offline models (much larger image).
         WITH_LOCAL_MODELS: "false"
-    image: docs-summarizer-api:latest
-    container_name: docs-summarizer-api
+    image: document_summarizer:latest
+    container_name: document_summarizer
     env_file: .env
     environment:
       # Front-end origins allowed to call the API directly (comma-separated).

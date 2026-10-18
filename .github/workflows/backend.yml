@@ -7,11 +7,11 @@
 #                 /api/health answers.
 #
 #   CD (push to main or a v* tag): the image is pushed to the GitHub
-#   Container Registry as ghcr.io/<owner>/docs-summarizer-api, tagged
+#   Container Registry as ghcr.io/<owner>/document_summarizer, tagged
 #   latest / sha-<commit> / <version>. Run it with:
 #
 #     docker run -p 8000:8000 --env-file .env -v docs-data:/app/data \
-#       ghcr.io/<owner>/docs-summarizer-api:latest
+#       ghcr.io/<owner>/document_summarizer:latest
 
 name: Back-end
 
@@ -37,7 +37,7 @@ defaults:
     working-directory: back-end
 
 env:
-  IMAGE_NAME: docs-summarizer-api
+  IMAGE_NAME: document_summarizer
 
 jobs:
   test:

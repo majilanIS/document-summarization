@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 # FastAPI back-end.
 #
-#   docker build -t docs-summarizer-api .
-#   docker run -d -p 8000:8000 --env-file .env -v docs-data:/app/data docs-summarizer-api
+#   docker build -t document_summarizer .
+#   docker run -d -p 8000:8000 --env-file .env -v docs-data:/app/data document_summarizer
 #
 # By default the image uses Gemini only (set GEMINI_API_KEY) and stays small.
 # To include the offline Hugging Face models as well (CPU build of torch,
 # a much larger image):
 #
-#   docker build --build-arg WITH_LOCAL_MODELS=true -t docs-summarizer-api .
+#   docker build --build-arg WITH_LOCAL_MODELS=true -t document_summarizer .
 
 FROM python:3.11-slim
 
