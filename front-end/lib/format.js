@@ -1,6 +1,6 @@
 export const SUPPORTED_EXTENSIONS = [".pdf", ".docx", ".txt"];
 // Keep in sync with MAX_UPLOAD_BYTES in back-end/app/api/documents.py.
-export const MAX_FILE_BYTES = 100 * 1024 * 1024;
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 // Summary size is a share of the document's length (see the back-end's
 // LENGTH_RATIOS), so longer documents get longer summaries.
@@ -40,7 +40,7 @@ export function validateFile(file) {
     return "Unsupported file type. Use a PDF, DOCX or TXT file.";
   }
   if (file.size > MAX_FILE_BYTES) {
-    return "File is larger than 100 MB.";
+    return "File is larger than 10 MB.";
   }
   if (file.size === 0) {
     return "File is empty.";
