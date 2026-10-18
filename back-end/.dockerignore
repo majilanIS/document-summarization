@@ -8,3 +8,10 @@ tests/
 **/__pycache__/
 *.pyc
 .pytest_cache/
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+docker-compose.yml
+readme.md
+app/**/docs.txt
