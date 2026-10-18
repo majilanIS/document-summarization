@@ -15,3 +15,4 @@ Dockerfile
 docker-compose.yml
 readme.md
 app/**/docs.txt
+pytest.ini

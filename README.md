@@ -248,12 +248,18 @@ npm run lint
 
 ## Docker
 
-To run the backend in Docker:
+The backend ships as a Docker image named `document_summarizer`. To build it and start the `document_summarizer` container (it needs `back-end/.env`; see step 1 above):
 
 ```powershell
 cd back-end
 docker compose up -d --build
 docker compose logs -f api
+```
+
+The API is then available at [http://localhost:8000](http://localhost:8000). If port 8000 is already in use (for example, by a local `uvicorn` dev server), choose another host port:
+
+```powershell
+$env:API_PORT = "8001"; docker compose up -d --build
 ```
 
 Stop the container:
@@ -262,7 +268,15 @@ Stop the container:
 docker compose down
 ```
 
-The backend uses a persistent Docker volume for stored data. The default Docker image installs Gemini-related dependencies; local models require the corresponding configuration and additional dependencies.
+Without Compose:
+
+```powershell
+cd back-end
+docker build -t document_summarizer .
+docker run -d --name document_summarizer -p 8000:8000 --env-file .env -v docs-data:/app/data document_summarizer
+```
+
+SQLite data is stored in the `docs-data` volume, so it persists across restarts and rebuilds. The container runs as a non-root user, includes a health check on `/api/health`, and uses a single Uvicorn worker because SQLite and the in-memory reward model are shared state. The default image installs only the Gemini dependencies. To include the local Hugging Face models (a much larger image), build with `--build-arg WITH_LOCAL_MODELS=true`.
 
 ## Deployment
 
